@@ -3,7 +3,7 @@ import re
 import yt_dlp
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api import YouTubeTranscriptApi as YTA  # تعديل الاستدعاء لتفادي الأخطاء
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import google.generativeai as genai
 
@@ -32,9 +32,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status_message = await update.message.reply_text("⏳ جاري بدء العمل.. استخراج النص وتحليل الفيديو...")
 
     try:
-        # 1. استخراج الـ ID وجلب النص
+        # 1. استخراج الـ ID وجلب النص بالطريقة المضمونة
         video_id = url.split("v=")[1].split("&")[0] if "v=" in url else url.split("/")[-1]
-        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['ar', 'en'])
+        
+        # جلب النص باستخدام الاختصار الجديد لتفادي مشكلة الـ type object
+        transcript = YTA.get_transcript(video_id, languages=['ar', 'en'])
         
         formatted_transcript = ""
         for entry in transcript:
@@ -42,7 +44,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_message.edit_text("🧠 جاري تحليل النص عبر الذكاء الاصطناعي لاختيار أفضل لقطة...")
 
-        # 2. إرسال النص لـ Gemini لاختيار أفضل لقطة (تم تحديث اسم الموديل هنا)
+        # 2. إرسال النص لـ Gemini لاختيار أفضل لقطة
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
         اقرأ النص التالي لفيديو يوتيوب، وحدد أفضل جزء حماسي أو مفيد ومثير للاهتمام يصلح ليكون فيديو قصير على تيك توك.
@@ -116,4 +118,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
+        
