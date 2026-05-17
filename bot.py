@@ -4,12 +4,11 @@ import yt_dlp
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from youtube_transcript_api import YouTubeTranscriptApi
-from moviepy.editor import VideoFileClip
+from moviepy.video.io.VideoFileClip import VideoFileClip
 import google.generativeai as genai
 
 # ---- إعداد المفاتيح والتوكنز ----
 TELEGRAM_TOKEN = "8958984509:AAFVW28c57rqirLcU1ZAvmOAAHjfRzwkkNE"
-# ملاحظة: ستحتاج للحصول على مفتاح Gemini API مجاني من Google AI Studio ووضعه هنا لاحقاً
 GEMINI_API_KEY = "AIzaSyBcmKutklzphRYyWVTTWkGF92DEC-X36Ps" 
 
 genai.configure(api_key=GEMINI_API_KEY)
@@ -43,8 +42,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_message.edit_text("🧠 جاري تحليل النص عبر الذكاء الاصطناعي لاختيار أفضل لقطة...")
 
-        # 2. إرسال النص لـ Gemini لاختيار أفضل لقطة
-        model = genai.GenerativeModel('gemini-pro')
+        # 2. إرسال النص لـ Gemini لاختيار أفضل لقطة (تم تحديث اسم الموديل هنا)
+        model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
         اقرأ النص التالي لفيديو يوتيوب، وحدد أفضل جزء حماسي أو مفيد ومثير للاهتمام يصلح ليكون فيديو قصير على تيك توك.
         يجب أن تكون مدة المقطع بين 30 إلى 60 ثانية كحد أقصى.
@@ -117,3 +116,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
