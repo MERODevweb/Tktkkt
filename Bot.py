@@ -10,7 +10,7 @@ import google.generativeai as genai
 # ---- إعداد المفاتيح والتوكنز ----
 TELEGRAM_TOKEN = "8958984509:AAFVW28c57rqirLcU1ZAvmOAAHjfRzwkkNE"
 # ملاحظة: ستحتاج للحصول على مفتاح Gemini API مجاني من Google AI Studio ووضعه هنا لاحقاً
-GEMINI_API_KEY = "YOUR_GEMINI_API_KEY" 
+GEMINI_API_KEY = "AIzaSyBcmKutklzphRYyWVTTWkGF92DEC-X36Ps" 
 
 genai.configure(api_key=GEMINI_API_KEY)
 
