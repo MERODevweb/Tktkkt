@@ -3,7 +3,7 @@ import re
 import yt_dlp
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from youtube_transcript_api import YouTubeTranscriptApi as YTA  # تعديل الاستدعاء لتفادي الأخطاء
+from youtube_transcript_api import YouTubeTranscriptApi
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import google.generativeai as genai
 
@@ -35,9 +35,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 1. استخراج الـ ID وجلب النص بالطريقة المضمونة
         video_id = url.split("v=")[1].split("&")[0] if "v=" in url else url.split("/")[-1]
         
-        # جلب النص باستخدام الاختصار الجديد لتفادي مشكلة الـ type object
-        transcript = YTA.get_transcript(video_id, languages=['ar', 'en'])
+        # التعديل الجوهري هنا: استدعاء الدالة من الكلاس نفسه لتجنب خطأ type object
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
         
+        try:
+            # محاولة جلب النص باللغة العربية أولاً، وإذا لم تتوفر يجلب الإنجليزية
+            transcript = transcript_list.find_transcript(['ar', 'en']).fetch()
+        except:
+            # إذا لم يجد اللغات المحددة، يجلب النص الأساسي المتاح للفيديو تلقائياً
+            transcript = transcript_list.find_transcript([]).fetch()
+            
         formatted_transcript = ""
         for entry in transcript:
             formatted_transcript += f"[{entry['start']:.2f}s] {entry['text']}\n"
@@ -118,4 +125,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-        
+    
