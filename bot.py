@@ -15,7 +15,7 @@ GEMINI_API_KEY = "AIzaSyBcmKutklzphRYyWVTTWkGF92DEC-X36Ps"
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# 🌐 خدعة البورت الوهمي لإرضاء سيرفر Render ومنعه من الإغلاق
+# 🌍 خدعة البورت الوهمي لإرضاء سيرفر Render ومنعه من الإغلاق
 def run_dummy_server():
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
@@ -26,7 +26,7 @@ def run_dummy_server():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "أهلاً بك في بوت أتمتة المحتوى! 🚀\n"
-        "أرسل لي أي رابط فيديو من اليوتيوب، وسأقوم باستخراج أفضل لقطة منه وتجهيزها تلقائياً."
+        "أرسل لي أي رابط فيديو من اليوتيوب، وسأقوم باستخراج أفضل لقطة منه وتجهيزها للتيك توك تلقائياً."
     )
 
 # دالة معالجة الروابط والشغل الثقيل
@@ -40,43 +40,57 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status_message = await update.message.reply_text("⏳ جاري بدء العمل.. استخراج النص وتحليل الفيديو...")
 
     try:
-        # 1. استخراج الـ ID وجلب النص بالطريقة المضمونة للنسخ الجديدة
         video_id = url.split("v=")[1].split("&")[0] if "v=" in url else url.split("/")[-1]
         
-        # حل مشكلة الـ type object باستدعاء الكلاس مباشرة للـ id
+        # 1. جلب النص مع تفادي أي خطأ قد يحصل في المكتبة
+        formatted_transcript = "[لم يتم استخراج النص التلقائي]"
         try:
+            # استخدام الطريقة الرسمية والصحيحة لجلب النص مباشرة
             transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['ar', 'en'])
+            formatted_transcript = ""
+            for entry in transcript:
+                formatted_transcript += f"[{entry['start']:.2f}s] {entry['text']}\n"
         except Exception:
-            # حل بديل إذا كانت اللغات المحددة غير متوفرة تلقائياً
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-            transcript = transcript_list.find_transcript([]).fetch()
-        
-        formatted_transcript = ""
-        for entry in transcript:
-            formatted_transcript += f"[{entry['start']:.2f}s] {entry['text']}\n"
+            try:
+                # حل بديل أخير ومضمون بالحروف الصحيحة (list_transcripts)
+                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                transcript = transcript_list.find_transcript([]).fetch()
+                formatted_transcript = ""
+                for entry in transcript:
+                    formatted_transcript += f"[{entry['start']:.2f}s] {entry['text']}\n"
+            except Exception:
+                pass # إذا لم يتوفر نص نهائياً للفيديو سيعتمد على الأوقات الافتراضية
 
         await status_message.edit_text("🧠 جاري تحليل النص عبر الذكاء الاصطناعي لاختيار أفضل لقطة...")
 
         # 2. إرسال النص لـ Gemini لاختيار أفضل لقطة
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
-        اقرأ النص التالي لفيديو يوتيوب، وحدد أفضل جزء حماسي أو مفيد ومثير للاهتمام يصلح ليكون فيديو قصير على تيك توك.
+        اقرأ النص التالي لفيديو يوتيوب (أو حدد وقت عشوائي مميز مدته 40 ثانية من بداية الفيديو إذا لم يتوفر النص).
+        حدد أفضل جزء حماسي أو مفيد ومثير للاهتمام يصلح ليكون فيديو قصير على تيك توك.
         يجب أن تكون مدة المقطع بين 30 إلى 60 ثانية كحد أقصى.
         أعطني النتيجة بدقة بالصيغة التالية تماماً ولا تكتب أي كلام آخر:
-        Start: [وقت البداية بالثواني فقط]
-        End: [وقت النهاية بالثواني فقط]
+        Start: [وقت البداية بالثواني فقط مثل 10]
+        End: [وقت النهاية بالثواني فقط مثل 50]
         Title: [العنوان المقترح للتيك توك مع هاشتاقات]
 
-        النص:
+        النص المتاح:
         {formatted_transcript}
         """
         
         response = model.generate_content(prompt)
         ai_output = response.text
 
-        start_time = float(re.search(r"Start:\s*([\d.]+)", ai_output).group(1))
-        end_time = float(re.search(r"End:\s*([\d.]+)", ai_output).group(1))
-        tiktok_title = re.search(r"Title:\s*(.*)", ai_output).group(1)
+        # استخراج الأوقات المحددة عبر مفسر النصوص
+        try:
+            start_time = float(re.search(r"Start:\s*([\d.]+)", ai_output).group(1))
+            end_time = float(re.search(r"End:\s*([\d.]+)", ai_output).group(1))
+            tiktok_title = re.search(r"Title:\s*(.*)", ai_output).group(1)
+        except Exception:
+            # أوقات احتياطية في حال لم يلتزم الذكاء الاصطناعي بالصيغة تماماً
+            start_time = 10.0
+            end_time = 50.0
+            tiktok_title = "مقطع تيك توك رهيب من اليوتيوب #foryou"
 
         await status_message.edit_text(f"📥 جاري تحميل الفيديو الأصلي وقص اللقطة المحددة ({start_time}s إلى {end_time}s)...")
 
@@ -107,7 +121,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 caption=f"🎬 **العنوان المقترح:**\n{tiktok_title}\n\n⏱️ اللقطة من {start_time} إلى {end_time} ثانية."
             )
 
-        # تنظيف الملفات
+        # تنظيف الملفات المؤقتة
         clip.close()
         crop_clip.close()
         os.remove(video_file)
@@ -130,4 +144,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
+        
