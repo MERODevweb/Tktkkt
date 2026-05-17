@@ -1,30 +1,38 @@
 import os
 import re
+import threading
 import yt_dlp
+from http.server import SimpleHTTPRequestHandler, HTTPServer
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from youtube_transcript_api import YouTubeTranscriptApi
-from moviepy.video.io.VideoFileClip import VideoFileClip
 import google.generativeai as genai
+from moviepy.video.io.VideoFileClip import VideoFileClip
 
 # ---- إعداد المفاتيح والتوكنز ----
-TELEGRAM_TOKEN = "8786405195:AAHg8XXONepFn311LjKXi3mfZXZx7rTKS8A"
+TELEGRAM_TOKEN = "8958984509:AAFVW28c57rqirLcU1ZAvmOAAHjfRzwkkNE"
 GEMINI_API_KEY = "AIzaSyBcmKutklzphRYyWVTTWkGF92DEC-X36Ps" 
 
 genai.configure(api_key=GEMINI_API_KEY)
+
+# 🌐 خدعة البورت الوهمي لإرضاء سيرفر Render ومنعه من الإغلاق
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
+    print(f"🌍 Dummy server running on port {port}")
+    server.serve_forever()
 
 # دالة للترحيب بالمستخدم
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "أهلاً بك في بوت أتمتة المحتوى! 🚀\n"
-        "أرسل لي أي رابط فيديو من اليوتيوب، وسأقوم باستخراج أفضل لقطة منه وتجهيزها للتيك توك تلقائياً."
+        "أرسل لي أي رابط فيديو من اليوتيوب، وسأقوم باستخراج أفضل لقطة منه وتجهيزها تلقائياً."
     )
 
 # دالة معالجة الروابط والشغل الثقيل
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
     
-    # التأكد أن المرسل هو رابط يوتيوب
     if "youtube.com" not in url and "youtu.be" not in url:
         await update.message.reply_text("❌ فضلاً، أرسل رابط فيديو يوتيوب صحيح.")
         return
@@ -32,19 +40,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status_message = await update.message.reply_text("⏳ جاري بدء العمل.. استخراج النص وتحليل الفيديو...")
 
     try:
-        # 1. استخراج الـ ID وجلب النص بالطريقة المضمونة
+        # 1. استخراج الـ ID وجلب النص بالطريقة المضمونة للنسخ الجديدة
         video_id = url.split("v=")[1].split("&")[0] if "v=" in url else url.split("/")[-1]
         
-        # التعديل الجوهري هنا: استدعاء الدالة من الكلاس نفسه لتجنب خطأ type object
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        
+        # حل مشكلة الـ type object باستدعاء الكلاس مباشرة للـ id
         try:
-            # محاولة جلب النص باللغة العربية أولاً، وإذا لم تتوفر يجلب الإنجليزية
-            transcript = transcript_list.find_transcript(['ar', 'en']).fetch()
-        except:
-            # إذا لم يجد اللغات المحددة، يجلب النص الأساسي المتاح للفيديو تلقائياً
+            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['ar', 'en'])
+        except Exception:
+            # حل بديل إذا كانت اللغات المحددة غير متوفرة تلقائياً
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
             transcript = transcript_list.find_transcript([]).fetch()
-            
+        
         formatted_transcript = ""
         for entry in transcript:
             formatted_transcript += f"[{entry['start']:.2f}s] {entry['text']}\n"
@@ -68,7 +74,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = model.generate_content(prompt)
         ai_output = response.text
 
-        # استخراج الأوقات والعنوان من رد الذكاء الاصطناعي
         start_time = float(re.search(r"Start:\s*([\d.]+)", ai_output).group(1))
         end_time = float(re.search(r"End:\s*([\d.]+)", ai_output).group(1))
         tiktok_title = re.search(r"Title:\s*(.*)", ai_output).group(1)
@@ -88,12 +93,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # تقطيع الفيديو وتعديل الأبعاد للتيك توك (9:16)
         clip = VideoFileClip(video_file).subclip(start_time, end_time)
-        
-        # تحجيم الفيديو ليكون طولي (أخذ منتصف الشاشة)
         w, h = clip.size
         target_w = int(h * 9 / 16)
         crop_clip = clip.crop(x_center=w/2, width=target_w, height=h)
-        
         crop_clip.write_videofile(output_file, codec="libx264", audio_codec="aac")
 
         await status_message.edit_text("📤 جاري إرسال الفيديو الجاهز إليك...")
@@ -105,7 +107,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 caption=f"🎬 **العنوان المقترح:**\n{tiktok_title}\n\n⏱️ اللقطة من {start_time} إلى {end_time} ثانية."
             )
 
-        # تنظيف الملفات المؤقتة لتوفير المساحة بالسيرفر
+        # تنظيف الملفات
         clip.close()
         crop_clip.close()
         os.remove(video_file)
@@ -117,10 +119,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # تشغيل البوت
 def main():
+    # تشغيل السيرفر الوهمي في الخلفية لإرضاء Render
+    threading.Thread(target=run_dummy_server, daemon=True).start()
+
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print("⚡ البوت يعمل الآن...")
+    print("⚡ البوت يعمل الآن ويستمع للرسائل...")
     app.run_polling()
 
 if __name__ == "__main__":
