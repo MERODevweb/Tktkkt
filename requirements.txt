@@ -1,5 +1,5 @@
-python-telegram-bot==20.8
-youtube-transcript-api==0.6.3
+python-telegram-bot
+youtube-transcript-api
 yt-dlp
 moviepy
 google-generativeai
