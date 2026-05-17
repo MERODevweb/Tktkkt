@@ -8,7 +8,7 @@ from moviepy.video.io.VideoFileClip import VideoFileClip
 import google.generativeai as genai
 
 # ---- إعداد المفاتيح والتوكنز ----
-TELEGRAM_TOKEN = "8958984509:AAFVW28c57rqirLcU1ZAvmOAAHjfRzwkkNE"
+TELEGRAM_TOKEN = "8786405195:AAHg8XXONepFn311LjKXi3mfZXZx7rTKS8A"
 GEMINI_API_KEY = "AIzaSyBcmKutklzphRYyWVTTWkGF92DEC-X36Ps" 
 
 genai.configure(api_key=GEMINI_API_KEY)
